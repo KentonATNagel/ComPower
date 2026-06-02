@@ -92,22 +92,34 @@ namespace Pamk_COM_ROT
                     try {IsRunning = (runningObjectTable.IsRunning(monikerContainer[0]) == 0); }
                     catch {IsRunning = false;}
 
+                    // TypeDescriptor.GetComponentName / GetClassName throw ArgumentNullException
+                    // when comInstance is null (which IRunningObjectTable.GetObject is permitted to
+                    // leave it as for some moniker types or stale/closing entries). Guard per-call so
+                    // one poisoned ROT entry does not abort the whole enumeration.
+                    string componentName = null;
+                    try { componentName = TypeDescriptor.GetComponentName(comInstance, false); }
+                    catch { }
+
+                    string componentClassName = null;
+                    try { componentClassName = TypeDescriptor.GetClassName(comInstance); }
+                    catch { }
+
                     // creating the unbound object to hold the Data out of the current component IMoniker
                     RunningObjectTableComponentInfo ROTComponent = new RunningObjectTableComponentInfo(
                         ppszDisplayName,
                         pClassID,
                         ConvertFromFILETIME(pLastChangedFileTime),
                         pcbSize,
-                        TypeDescriptor.GetComponentName(comInstance, false),
-                        TypeDescriptor.GetClassName(comInstance),
+                        componentName,
+                        componentClassName,
                         IsRunning,
                         IsDirty
                     );
 
                     resultList.Add(ROTComponent);
 
-                    // clean up and release object 
-                    Marshal.ReleaseComObject(comInstance);
+                    // clean up and release object
+                    if (comInstance != null) Marshal.ReleaseComObject(comInstance);
                     Marshal.ReleaseComObject(bindInfo);
                 }
 
@@ -179,7 +191,7 @@ namespace Pamk_COM_ROT
                         Marshal.ReleaseComObject(bindInfo);
                         ResultInstance = comInstance;
                     }
-                    else
+                    else if (comInstance != null)
                         Marshal.ReleaseComObject(comInstance);
 
                     Marshal.ReleaseComObject(bindInfo);
